@@ -10,9 +10,6 @@
 #define TAG "MASTER"
 
 /**
- * This is an example which echos any data it receives on UART1 back to the sender,
- * with hardware flow control turned off. It does not use UART driver event queue.
- *
  * - Port: UART1
  * - Receive (Rx) buffer: on
  * - Transmit (Tx) buffer: off
@@ -28,13 +25,13 @@
 
 #define BUF_SIZE (1024)
 
-static void echo_task(void *arg)
+static void master_read_write_task(void *arg)
 {
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
     uart_config_t uart_config =
     {
-        .baud_rate = 115200,
+        .baud_rate = 9600,
         .data_bits = UART_DATA_8_BITS,
         .parity    = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -52,6 +49,27 @@ static void echo_task(void *arg)
     char string[BUF_SIZE]= "Hello world from master!";
     memcpy(data_from_master, string, BUF_SIZE);
 
+#ifdef WRITE_FROM_TERMINAL
+    char read_char = '\0';
+    while(1) {
+        size_t nmbr_bytes_read = fread(&read_char, 1, 1, stdin);
+        if(nmbr_bytes_read)
+        {
+            if (read_char != '\0')
+            {
+                // Write data read from terminal to Slave
+                uart_write_bytes(UART_NUM_2, (const char *) &read_char, 1);
+                read_char = '\0';
+            }else
+            {
+                vTaskDelay(10/portTICK_PERIOD_MS);
+            }
+        }else
+        {
+            vTaskDelay(10/portTICK_PERIOD_MS);
+        }
+    }
+#else
     while (1)
     {
         // Write data back to the UART
@@ -63,9 +81,10 @@ static void echo_task(void *arg)
 
         vTaskDelay(100/portTICK_PERIOD_MS);
     }
+#endif // WRITE_FROM_TERMINAL
 }
 
 void app_main(void)
 {
-    xTaskCreate(echo_task, "UART_MASTER_TASK", 5*1024, NULL, 10, NULL);
+    xTaskCreate(master_read_write_task, "UART_MASTER_TASK", 5*1024, NULL, 10, NULL);
 }
